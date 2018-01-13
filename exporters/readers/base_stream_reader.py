@@ -56,6 +56,7 @@ class StreamBasedReader(BaseReader):
     def iteritems(self):
         for stream in self.get_read_streams():
             for record in self.iteritems_retrying(stream):
+                self.increase_read()
                 yield record
         self.finished = True
 
