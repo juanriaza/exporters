@@ -231,5 +231,6 @@ class BaseExporter(object):
                 raise
             finally:
                 self._clean_export_job()
+            return dict(self.metadata.to_dict())
         else:
             self.metadata.bypassed_pipeline = True
