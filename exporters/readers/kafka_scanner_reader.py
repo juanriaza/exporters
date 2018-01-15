@@ -5,7 +5,7 @@ import six
 from exporters.readers.base_reader import BaseReader
 from exporters.records.base_record import BaseRecord
 from exporters.default_retries import retry_short
-from exporters.utils import str_list, int_list
+from exporters.utils import str_list
 
 
 class KafkaScannerReader(BaseReader):
@@ -24,6 +24,8 @@ class KafkaScannerReader(BaseReader):
         - partitions (list)
             Partitions to read from.
 
+        - group (str)
+            Reading group for kafka client.
     """
 
     # List of options to set up the reader
@@ -31,20 +33,25 @@ class KafkaScannerReader(BaseReader):
         'batch_size': {'type': six.integer_types, 'default': 10000},
         'brokers': {'type': str_list},
         'topic': {'type': six.string_types},
-        'partitions': {'type': int_list, 'default': None},
-        'ssl_configs': {'type': dict, 'default': None},
+        'group': {'type': six.string_types},
+        'partitions': {'type': str_list, 'default': None}
     }
 
     def __init__(self, *args, **kwargs):
-        from kafka_scanner import KafkaScanner
+        from kafka_scanner import KafkaScanner, KafkaScannerSimple
         super(KafkaScannerReader, self).__init__(*args, **kwargs)
         brokers = self.read_option('brokers')
+        group = self.read_option('group')
         topic = self.read_option('topic')
         partitions = self.read_option('partitions')
+        if partitions and len(partitions) == 1:
+            scanner_class = KafkaScannerSimple
+        else:
+            scanner_class = KafkaScanner
 
-        scanner = KafkaScanner(brokers, topic, partitions=partitions,
-                               batchsize=self.read_option('batch_size'),
-                               ssl_configs=self.read_option('ssl_configs'))
+        scanner = scanner_class(brokers, topic, group, partitions=partitions,
+                                batchsize=self.read_option('batch_size'),
+                                keep_offsets=self.read_option('RESUME'))
 
         self.batches = scanner.scan_topic_batches()
 
@@ -53,7 +60,7 @@ class KafkaScannerReader(BaseReader):
         else:
             topic_str = topic
         self.logger.info('KafkaScannerReader has been initiated.'
-                         'Topic: {}.'.format(topic_str))
+                         'Topic: {}. Group: {}'.format(topic_str, group))
 
     @retry_short
     def get_from_kafka(self):

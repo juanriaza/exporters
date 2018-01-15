@@ -13,14 +13,12 @@ from exporters.writers.base_writer import ItemsLimitReached
 from exporters.readers.base_stream_reader import is_stream_reader
 from six.moves.queue import Queue
 from threading import Thread
-import time
 
 
 class BaseExporter(object):
     def __init__(self, configuration):
         self.config = ExporterConfig(configuration)
         self.threaded = self.config.exporter_options.get('threaded', False)
-        self.queue_size = self.config.exporter_options.get('thread_queue_size', 100)
         self.logger = ExportManagerLogger(self.config.log_options)
         self.module_loader = ModuleLoader()
         metadata = ExportMeta(configuration)
@@ -126,7 +124,6 @@ class BaseExporter(object):
             'items_count', self.writer.get_metadata('items_count') + bypass.total_items)
         self.logger.info(
             'Finished executing bypass {}.'.format(bypass_class.__name__))
-        self._final_stats_report()
         self.notifiers.notify_complete_dump(receivers=[CLIENTS, TEAM])
 
     def bypass(self):
@@ -174,10 +171,6 @@ class BaseExporter(object):
         self.logger.info('Starting reader thread')
         while not self.reader.is_finished():
             self.process_queue.put(list(self.reader.get_next_batch()))
-            qsize = self.process_queue.qsize()
-            if qsize > 0.5*self.queue_size:
-                # Queues are getting full, throttle the reader so the processor/writer can keep up
-                time.sleep((qsize*10.0 / self.queue_size) - 5)
         self.reader_finished = True
 
     def _process_thread(self):
@@ -202,8 +195,8 @@ class BaseExporter(object):
     def _run_threads(self):
         self.reader_finished = False
         self.process_finished = False
-        self.process_queue = Queue(self.queue_size)
-        self.writer_queue = Queue(self.queue_size)
+        self.process_queue = Queue(1000)
+        self.writer_queue = Queue(1000)
         reader_thread = Thread(target=self._reader_thread)
         process_thread = Thread(target=self._process_thread)
         writer_thread = Thread(target=self._writer_thread)
@@ -231,6 +224,5 @@ class BaseExporter(object):
                 raise
             finally:
                 self._clean_export_job()
-            return dict(self.metadata.to_dict())
         else:
             self.metadata.bypassed_pipeline = True

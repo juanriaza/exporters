@@ -48,10 +48,6 @@ class ModuleLoader(object):
         from exporters.stats_managers.base_stats_manager import BaseStatsManager
         return self._load_module(options, metadata, BaseStatsManager, **kwargs)
 
-    def load_write_buffer(self, options, metadata, **kwargs):
-        from exporters.write_buffers.base import WriteBuffer
-        return self._load_module(options, metadata, WriteBuffer, **kwargs)
-
     def load_class(self, class_path):
         mod_path, class_name = class_path.rsplit('.', 1)
         module = import_module(mod_path)

@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = 'exporters',
-    version = '0.6.18',
+    version = '0.7.0',
     description = 'Exporters is an extensible export pipeline library that supports filter, '
                   'transform and several sources and destinations.',
     long_description = 'Exporters is an extensible export pipeline library that supports filter, '
@@ -25,9 +25,9 @@ setup(
     packages = find_packages(exclude=['tests']),
     install_requires = ['six', 'retrying', 'requests', 'PyYAML', 'decorator'],
     dependency_links = [
-        'git@github.com:scrapinghub/collection-scanner.git@0.1.5#egg=collection_scanner',
+        'git@github.com:scrapinghub/collection-scanner.git#egg=collection_scanner',
         'git@github.com:scrapinghub/flatson.git#egg=flatson',
-        'git@github.com:scrapinghub/kafka-scanner.git@0.2.6#egg=kafka_scanner'
+        'git@github.com:scrapinghub/kafka-scanner.git#egg=kafka_scanner'
     ],
     extras_require = {
         'bz2': ['bz2file'],

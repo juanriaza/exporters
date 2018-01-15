@@ -1,0 +1,16 @@
+Metadata-Version: 1.1
+Name: exporters
+Version: 0.7.0
+Summary: Exporters is an extensible export pipeline library that supports filter, transform and several sources and destinations.
+Home-page: https://github.com/scrapinghub/exporters
+Author: Scrapinghub
+Author-email: info@scrapinghub
+License: BSD
+Description: Exporters is an extensible export pipeline library that supports filter, transform and several sources and destinations. They aim to provide a flexible and easy to extend infrastructure for exporting data to and from multiple sources, with support for filtering and transformation.
+Keywords: exporters export data
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Natural Language :: English
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python :: 2.7

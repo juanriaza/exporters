@@ -8,7 +8,7 @@ from exporters.default_retries import retry_short
 from exporters.exceptions import ConfigurationError, InvalidDateRangeError
 import logging
 
-from exporters.utils import get_bucket_name, get_boto_connection
+from exporters.utils import get_bucket_name
 
 S3_URL_EXPIRES_IN = 1800  # half an hour should be enough
 
@@ -29,8 +29,11 @@ def get_bucket(bucket, aws_access_key_id, aws_secret_access_key, **kwargs):
 
     bucket = get_bucket_name(bucket)
 
-    connection = get_boto_connection(aws_access_key_id, aws_secret_access_key,
-                                     bucketname=bucket)
+    if len(aws_access_key_id) > len(aws_secret_access_key):
+        logging.warn("The AWS credential keys aren't in the usual size,"
+                     " are you using the correct ones?")
+
+    connection = boto.connect_s3(aws_access_key_id, aws_secret_access_key)
     try:
         return connection.get_bucket(bucket)
     except boto.exception.S3ResponseError:
@@ -188,7 +191,6 @@ class S3Reader(StreamBasedReader):
         self.logger.info('S3Reader has been initiated')
 
     def open_stream(self, stream):
-        self.logger.info('Opening {}'.format(stream.filename))
         return urlopen(self.bucket.get_key(stream.filename).generate_url(S3_URL_EXPIRES_IN))
 
     def get_read_streams(self):

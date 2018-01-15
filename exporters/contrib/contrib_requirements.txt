@@ -1,5 +1,0 @@
-# odo
--e git+git@github.com:scrapinghub/flatson.git#egg=flatson
-odo==0.3.4
-pandas==0.16.2
-

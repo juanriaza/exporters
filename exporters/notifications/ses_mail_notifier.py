@@ -9,6 +9,9 @@ from exporters.notifications.receiver_groups import CLIENTS, TEAM
 from exporters.utils import str_list
 
 
+DEFAULT_MAIN_FROM = 'Scrapinghub data services <dataservices@scrapinghub.com>'
+
+
 def get_scrapy_cloud_link(jobkey):
     if not jobkey:
         return ''
@@ -72,6 +75,8 @@ Total records exported: {{ writer.items_count }}.
 {%- if writer_options.collection_name and writer_options.project_id %}
 Target Hubstorage collection URL: https://dash.scrapinghub.com/p/{{ writer_options.project_id }}/collections/s/{{ writer_options.collection_name }}
 {%- endif %}
+
+If you have any questions or concerns about the data you have received, email us at dataservices@scrapinghub.com.\n
 """  # noqa
     return render(subject_tmpl, **data), render(body_tmpl, **data)
 
@@ -121,7 +126,6 @@ class SESMailNotifier(BaseNotifier):
         'access_key': {'type': six.string_types, 'env_fallback': 'EXPORTERS_MAIL_AWS_ACCESS_KEY'},
         'secret_key': {'type': six.string_types, 'env_fallback': 'EXPORTERS_MAIL_AWS_SECRET_KEY'},
         'client_name': {'type': six.string_types, 'default': 'Customer'},
-        'mail_from': {'type': six.string_types, 'env_fallback': 'EXPORTERS_MAIL_FROM'},
     }
 
     def __init__(self, options, metadata):
@@ -168,7 +172,7 @@ class SESMailNotifier(BaseNotifier):
         if mails:
             import boto
             ses = boto.connect_ses(self.read_option('access_key'), self.read_option('secret_key'))
-            ses.send_email(self.read_option('mail_from'), subject, body, mails)
+            ses.send_email(self.read_option('mail_from', DEFAULT_MAIN_FROM), subject, body, mails)
 
     def _get_mails(self, receivers):
         mails = []

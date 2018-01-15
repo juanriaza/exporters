@@ -3,7 +3,7 @@ import logging
 from contextlib import closing, contextmanager
 from exporters.bypasses.base_s3_bypass import BaseS3Bypass
 from exporters.default_retries import retry_long
-from exporters.progress_callback import BotoUploadProgress, BotoDownloadProgress
+from exporters.progress_callback import BotoUploadProgress
 from exporters.readers.s3_reader import get_bucket
 from exporters.utils import TmpFile, split_file, calculate_multipart_etag, CHUNK_SIZE
 from exporters.writers.s3_writer import should_use_multipart_upload, multipart_upload
@@ -56,7 +56,6 @@ class S3Bypass(BaseS3Bypass):
         - No grouper module is set up.
         - S3 Writer has not a items_limit set in configuration.
         - S3 Writer has default items_per_buffer_write and size_per_buffer_write per default.
-        - S3 Writer has default write_buffer.
 
     This bypass tries to directly copy the S3 keys between the read and write buckets. If
     is is not possible due to permission issues, it will download the key from the read bucket
@@ -92,7 +91,7 @@ class S3Bypass(BaseS3Bypass):
         if writer_options.get('save_pointer'):
             self._update_last_pointer(
                 self.dest_bucket, writer_options.get(
-                    'save_pointer'), writer_options.get('filebase'))
+                            'save_pointer'), writer_options.get('filebase'))
 
     @retry_long
     def _write_s3_pointer(self, dest_bucket, save_pointer, filebase):
@@ -111,12 +110,8 @@ class S3Bypass(BaseS3Bypass):
             user_id = dest_bucket.connection.get_canonical_user_id()
             with key_permissions(user_id, key):
                 dest_bucket.copy_key(dest_key_name, source_bucket.name, key_name)
-        except S3ResponseError, e:
+        except S3ResponseError:
             self.logger.warning('No direct copy supported for key {}.'.format(key_name))
-            self.logger.warning("Message: %s, Error code: %s, Reason: %s, Status: %s, Body: %s",
-                                e.message,
-                                e.error_code, e.reason,
-                                e.status, e.body)
             self._copy_without_permissions(dest_bucket, dest_key_name, source_bucket, key_name)
         else:
             self._check_copy_integrity(key, dest_bucket, dest_key_name)
@@ -126,7 +121,7 @@ class S3Bypass(BaseS3Bypass):
             self._ensure_proper_key_permissions(dest_key)
         except S3ResponseError:
             self.logger.warning(
-                'Skipping key permissions set. We have no READ_ACP/WRITE_ACP permissions')
+                    'Skipping key permissions set. We have no READ_ACP/WRITE_ACP permissions')
 
     def _warn_if_etags_differ(self, source_key, dest_key, source_md5=None):
         source_md5 = source_md5 or source_key.etag
@@ -142,7 +137,7 @@ class S3Bypass(BaseS3Bypass):
             self._warn_if_etags_differ(source_key, dest_key)
         except S3ResponseError:
             self.logger.warning(
-                'Skipping copy integrity. We have no READ_ACP/WRITE_ACP permissions')
+                    'Skipping copy integrity. We have no READ_ACP/WRITE_ACP permissions')
 
     def _ensure_proper_key_permissions(self, key):
         key.set_acl('bucket-owner-full-control')
@@ -174,14 +169,14 @@ class S3Bypass(BaseS3Bypass):
             for chunk in split_file(dump_path):
                 self._upload_chunk(mp, chunk)
                 self.logger.info(
-                    'Uploaded chunk number {}'.format(chunk.number))
+                        'Uploaded chunk number {}'.format(chunk.number))
         try:
             with closing(bucket.get_key(key_name)) as key:
                 self._ensure_proper_key_permissions(key)
         except S3ResponseError:
             self.logger.warning(
-                'We could not ensure proper permissions. '
-                'We have no READ_ACP/WRITE_ACP permissions')
+                    'We could not ensure proper permissions. '
+                    'We have no READ_ACP/WRITE_ACP permissions')
 
     def _check_multipart_copy_integrity(self, key, dest_bucket, dest_key_name, path):
         from boto.exception import S3ResponseError
@@ -191,13 +186,12 @@ class S3Bypass(BaseS3Bypass):
             self._warn_if_etags_differ(key, dest_key, source_md5=md5)
         except S3ResponseError:
             self.logger.warning(
-                'Skipping copy integrity. We have no READ_ACP/WRITE_ACP permissions')
+                    'Skipping copy integrity. We have no READ_ACP/WRITE_ACP permissions')
 
     def _copy_without_permissions(self, dest_bucket, dest_key_name, source_bucket, key_name):
         key = source_bucket.get_key(key_name)
         with TmpFile() as tmp_filename:
-            download_progress = BotoDownloadProgress(self.logger)
-            key.get_contents_to_filename(tmp_filename, cb=download_progress)
+            key.get_contents_to_filename(tmp_filename)
             if should_use_multipart_upload(tmp_filename, dest_bucket):
                 self._upload_large_file(dest_bucket, tmp_filename, dest_key_name)
                 self._check_multipart_copy_integrity(key, dest_bucket, dest_key_name, tmp_filename)
@@ -209,21 +203,10 @@ class S3Bypass(BaseS3Bypass):
                 self._check_copy_integrity(key, dest_bucket, dest_key_name)
         self.logger.info('Uploaded key {}'.format(dest_key_name))
 
-    def _update_metadata(self, dest_key_name, total):
-        key_info = {
-            'key_name': dest_key_name,
-            'number_of_records': int(total),
-        }
-        keys_written = self.get_metadata('keys_written')
-        keys_written.append(key_info)
-
-        self.set_metadata('keys_written', keys_written)
-
     @retry_long
     def _copy_s3_key(self, key):
         dest_key_name = self.get_dest_key_name(key.name)
         self._ensure_copy_key(self.dest_bucket, dest_key_name, key.bucket, key.name)
-        self._update_metadata(dest_key_name, key.get_metadata('total'))
 
     def close(self):
         if self.bypass_state:

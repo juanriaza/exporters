@@ -16,14 +16,11 @@ class BaseS3Bypass(BaseBypass):
         - No grouper module is set up.
         - writer has no option items_limit set in configuration.
         - writer has default items_per_buffer_write and size_per_buffer_write per default.
-        - writer has default write_buffer.
     """
 
     def __init__(self, config, metadata):
         super(BaseS3Bypass, self).__init__(config, metadata)
         self.bypass_state = None
-        self.set_metadata('keys_written', [])
-        self.set_metadata('items_count', 0)
 
     @classmethod
     def meets_conditions(cls, config):
@@ -51,10 +48,6 @@ class BaseS3Bypass(BaseBypass):
         if config.writer_options['options'].get('size_per_buffer_write'):
             cls._log_skip_reason('buffer limit configuration (size_per_buffer_write)')
             return False
-        write_buffer = config.writer_options['options'].get('write_buffer')
-        if write_buffer and not write_buffer.endswith('base.WriteBuffer'):
-            cls._log_skip_reason('custom write buffer configuration')
-            return False
         return True
 
     def execute(self):
@@ -73,18 +66,12 @@ class BaseS3Bypass(BaseBypass):
             self.bypass_state.commit_copied_key(key)
             logging.log(logging.INFO, 'Copied key {}'.format(key))
 
-    def _update_count_metadata(self, key, total):
-        items_count = self.get_metadata('items_count')
-        items_count += total
-        self.set_metadata('items_count', items_count)
-
     def _copy_key(self, source_bucket, key_name):
         key = source_bucket.get_key(key_name)
         if key.get_metadata('total'):
             total = int(key.get_metadata('total'))
             self.increment_items(total)
             self.bypass_state.increment_items(total)
-            self._update_count_metadata(key, total)
         else:
             self.valid_total_count = False
         self._copy_s3_key(key)

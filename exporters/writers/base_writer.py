@@ -3,8 +3,8 @@ from exporters.export_formatter import DEFAULT_FORMATTER_CLASS
 from exporters.compression import FILE_COMPRESSION
 from exporters.exceptions import ConfigurationError
 from exporters.logger.base_logger import WriterLogger
-from exporters.module_loader import ModuleLoader
 from exporters.pipeline.base_pipeline_item import BasePipelineItem
+from exporters.write_buffer import WriteBuffer, GroupingBufferFilesTracker
 
 
 class ItemsLimitReached(Exception):
@@ -33,10 +33,7 @@ class BaseWriter(BasePipelineItem):
         'size_per_buffer_write': {'type': six.integer_types, 'default': SIZE_PER_BUFFER_WRITE},
         'items_limit': {'type': six.integer_types, 'default': 0},
         'check_consistency': {'type': bool, 'default': False},
-        'compression': {'type': six.string_types, 'default': 'gz'},
-        'write_buffer': {'type': six.string_types,
-                         'default': 'exporters.write_buffers.base.WriteBuffer'},
-        'write_buffer_options': {'type': dict, 'default': {}},
+        'compression': {'type': six.string_types, 'default': 'gz'}
     }
 
     hash_algorithm = None
@@ -51,8 +48,13 @@ class BaseWriter(BasePipelineItem):
         self.export_formatter = kwargs.get('export_formatter')
         if self.export_formatter is None:
             self.export_formatter = DEFAULT_FORMATTER_CLASS(options=dict(), metadata=metadata)
+        items_per_buffer_write = self.read_option('items_per_buffer_write')
+        size_per_buffer_write = self.read_option('size_per_buffer_write')
         self.compression_format = self._get_compression_format()
-        self.write_buffer = self._get_write_buffer()
+        self.write_buffer = WriteBuffer(items_per_buffer_write,
+                                        size_per_buffer_write,
+                                        self._items_group_files_handler(),
+                                        self.compression_format, self.hash_algorithm)
         self.set_metadata('items_count', 0)
 
     def _get_compression_format(self):
@@ -63,30 +65,8 @@ class BaseWriter(BasePipelineItem):
                                      ''.format(FILE_COMPRESSION.keys()))
         return compression
 
-    def _get_write_buffer(self):
-        module_loader = ModuleLoader()
-
-        write_buffer_module = self.read_option('write_buffer')
-        write_buffer_class = module_loader.load_class(write_buffer_module)
-        write_buffer_options = {
-            'name': self.read_option('write_buffer'),
-            'options': self.read_option('write_buffer_options'),
-        }
-
-        file_handler = self._items_group_files_handler(write_buffer_class,
-                                                       **write_buffer_options['options'])
-        kwargs = {
-             'items_per_buffer_write': self.read_option('items_per_buffer_write'),
-             'size_per_buffer_write': self.read_option('size_per_buffer_write'),
-             'items_group_files_handler': file_handler,
-             'compression_format': self.compression_format,
-             'hash_algorithm': self.hash_algorithm,
-        }
-        return module_loader.load_write_buffer(write_buffer_options, self.metadata, **kwargs)
-
-    def _items_group_files_handler(self, write_buffer_class, **kwargs):
-        return write_buffer_class.group_files_tracker_class(self.export_formatter,
-                                                            self.compression_format, **kwargs)
+    def _items_group_files_handler(self):
+        return GroupingBufferFilesTracker(self.export_formatter, self.compression_format)
 
     def write(self, path, key):
         """
